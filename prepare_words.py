@@ -1,5 +1,6 @@
 import spacy
 import pickle
+import tqdm
 
 nlp = spacy.load("en_core_web_lg")  # make sure to use larger model!
 with open("static/words.txt") as f:
@@ -7,7 +8,7 @@ with open("static/words.txt") as f:
 
 similarities = {}
 
-for token1 in tokens:
+for token1 in tqdm.tqdm(tokens, desc="Calculating similarities for vocabulary"):
     for token2 in tokens:
         if token1 == token2:
             continue
