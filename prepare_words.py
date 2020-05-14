@@ -1,6 +1,12 @@
 import spacy
 import pickle
 import tqdm
+import os
+
+LOAD_FROM_CHECKPOIINT = True
+CALCULATE_SIMILARITIES = True
+FIND_NEIGHBORS = True
+CHECKPOINT_STEPS = 1000
 
 nlp = spacy.load("en_core_web_lg")  # make sure to use larger model!
 with open("static/words.txt") as f:
@@ -8,18 +14,37 @@ with open("static/words.txt") as f:
 
 similarities = {}
 
-for token1 in tqdm.tqdm(tokens, desc="Calculating similarities for vocabulary"):
-    for token2 in tokens:
-        if token1 == token2:
-            continue
-        similarities[token1.text] = similarities.get(token1.text, []) + [(token2.text, token1.similarity(token2))]
+if LOAD_FROM_CHECKPOIINT and os.path.exists("static/similarities_checkpoint.pickle"):
+    similarities = pickle.load(open("static/similarities_checkpoint.pickle", "rb"))
 
-for token1, smlrts in similarities.items():
-    sorted_smlrts = [x for x in sorted(smlrts, key=lambda x: x[1], reverse=True)]
-    similarities[token1] = {
-        "words": [x[0] for x in sorted_smlrts],
-        "similarities": [x[1] for x in sorted_smlrts]
-        }
+if CALCULATE_SIMILARITIES:
+    proccesed_words_f = open("static/processed_words.txt", "w")
+    processed = 0
+    for i, token1 in tqdm.tqdm(enumerate(tokens), desc="Calculating similarities for vocabulary"):
+        if token1.vector_norm == 0:
+            # print(token1.text)
+            continue
+        processed += 1
+        for token2 in tokens[:i]:
+            if token2.vector_norm == 0:
+                continue
+            if token1 == token2:
+                continue
+            if not (token2.text, token1.similarity(token2)) in similarities.get(token1.text, []):
+                similarities[token1.text] = similarities.get(token1.text, []) + [(token2.text, token1.similarity(token2))]
+        if processed % CHECKPOINT_STEPS == 0:
+            pickle.dump(similarities, open("static/similarities_checkpoint.pickle", "wb"))
+            print("saved similarities for {} words".format(processed))
+        proccesed_words_f.write(token1.text+"\n")
+    proccesed_words_f.close()
+
+if FIND_NEIGHBORS:
+    for token1, smlrts in similarities.items():
+        sorted_smlrts = [x for x in sorted(smlrts, key=lambda x: x[1], reverse=True)]
+        similarities[token1] = {
+            "words": [x[0] for x in sorted_smlrts],
+            "similarities": [x[1] for x in sorted_smlrts]
+            }
 
 for token, v in similarities.items():
     print(token)
